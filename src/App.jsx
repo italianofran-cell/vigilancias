@@ -33,19 +33,12 @@ const COLORS = {
   sirenBlue: "#1D4E89",    // azul sirena — confirmaciones
 };
 
-// --- Datos de ejemplo. Reemplaza esto por tus propios usuarios. ---
+// --- Usuario de acceso. ---
 const USERS = {
-  ana: { password: "ana2024", name: "Ana Torres" },
-  carlos: { password: "carlos2024", name: "Carlos Ruiz" },
-  admin: { password: "admin123", name: "Administrador" },
+  t3: { password: "T3", name: "T3" },
 };
 
 const VERSIONS = ["V10", "V20", "V30", "V40"];
-
-// --- Login desactivado temporalmente (fase de pruebas). ---
-// Para reactivarlo: usa <LoginScreen onLogin={...}> como primera pantalla
-// del componente App, como estaba antes.
-const DEMO_USER_LABEL = "Modo pruebas";
 
 const INDIA_DELTA_TIMES = ["23:45", "00:30", "01:00", "01:30"];
 
@@ -778,9 +771,6 @@ function LoginScreen({ onLogin }) {
             Entrar
           </button>
 
-          <p className="text-[11px] mt-5 leading-relaxed" style={{ color: COLORS.inkSoft }}>
-            Demo — usuarios de ejemplo: <b>ana / ana2024</b>, <b>carlos / carlos2024</b>, <b>admin / admin123</b>
-          </p>
         </OfficialCard>
       </div>
     </PaperBackground>
@@ -1667,7 +1657,7 @@ export default function App() {
   const [indiaDeltaTime, setIndiaDeltaTime] = useState(null);
   const [times, setTimes] = useState(null); // array of arrays, per report
   const [timesSubmitted, setTimesSubmitted] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [session, setSession] = useState(null); // { username, name }
   const [variantMap, setVariantMap] = useState(null);
   const previousVariantMapRef = useRef(null);
   const [timesCountMap, setTimesCountMap] = useState(null);
@@ -1696,21 +1686,21 @@ export default function App() {
   // "Salir" cierra la sesión del todo: la próxima vez que se inicie sesión,
   // los informes de todas las unidades se redactan con otra variante al azar.
   const handleLogout = () => {
-    setLoggedIn(false);
+    setSession(null);
     setVariantMap(null);
     setVersion(null);
     resetAfterVersion();
   };
 
-  if (!loggedIn) {
+  if (!session) {
     return (
-      <QuickLoginScreen
-        onLogin={() => {
+      <LoginScreen
+        onLogin={(username, name) => {
           const newMap = pickRandomVariantMap(previousVariantMapRef.current);
           previousVariantMapRef.current = newMap;
           setVariantMap(newMap);
           setTimesCountMap(pickRandomTimesCountMap());
-          setLoggedIn(true);
+          setSession({ username, name });
         }}
       />
     );
@@ -1719,7 +1709,7 @@ export default function App() {
   if (!version) {
     return (
       <VersionSelectScreen
-        userLabel={DEMO_USER_LABEL}
+        userLabel={session.name}
         onSelect={(v) => setVersion(v)}
         onLogout={handleLogout}
       />
@@ -1731,7 +1721,7 @@ export default function App() {
   if (!indiaDeltaTime) {
     return (
       <TimeSelectScreen
-        userLabel={DEMO_USER_LABEL}
+        userLabel={session.name}
         version={version}
         onSelect={(t) => setIndiaDeltaTime(t)}
         onBack={handleBackToVersion}
@@ -1743,7 +1733,7 @@ export default function App() {
   if (baseReports && includePool === null) {
     return (
       <PoolReportScreen
-        userLabel={DEMO_USER_LABEL}
+        userLabel={session.name}
         version={version}
         onAnswer={(answer) => setIncludePool(answer)}
         onBack={handleBackToVersion}
@@ -1765,7 +1755,7 @@ export default function App() {
     if (!timesSubmitted) {
       return (
         <TimesFormScreen
-          userLabel={DEMO_USER_LABEL}
+          userLabel={session.name}
           version={version}
           indiaDeltaTime={indiaDeltaTime}
           reports={reports}
@@ -1783,7 +1773,7 @@ export default function App() {
 
     return (
       <ReportsScreen
-        userLabel={DEMO_USER_LABEL}
+        userLabel={session.name}
         version={version}
         indiaDeltaTime={indiaDeltaTime}
         reports={reports}
@@ -1799,7 +1789,7 @@ export default function App() {
   // Versiones sin formulario todavía: fichas estáticas de ejemplo
   return (
     <CatalogScreen
-      userLabel={DEMO_USER_LABEL}
+      userLabel={session.name}
       version={version}
       indiaDeltaTime={indiaDeltaTime}
       onBack={handleBackToVersion}
