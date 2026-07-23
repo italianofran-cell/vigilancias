@@ -237,27 +237,6 @@ const REPORTS_BY_VERSION = {
       id: "informe3",
       number: 3,
       tag: "INFORME 3",
-      title: "Huerto Gambín",
-      timesCount: 4,
-      templates: [
-        (times) =>
-          `La unidad actuante realiza servicio preventivo en Huerto Gambín para prevenir molestias, ruidos y posibles actividades relacionadas con el trapicheo de drogas, efectuando ${countWord(times.length)} vigilancias a las ${formatTimes(
-            times
-          )}, sin novedades.`,
-        (times) =>
-          `Con el fin de atajar molestias, ruidos y un posible tráfico de estupefacientes, se establece un dispositivo preventivo en Huerto Gambín, desarrollando ${countWord(times.length)} actuaciones a las ${formatTimes(
-            times
-          )}, sin nada que reseñar.`,
-        (times) =>
-          `En prevención de posibles actividades de menudeo de drogas, así como de ruidos y molestias, la patrulla efectúa ${countWord(times.length)} controles en Huerto Gambín, registrándose dichas rondas a las ${formatTimes(
-            times
-          )}, sin resultar necesaria intervención alguna.`,
-      ],
-    },
-    {
-      id: "informe4",
-      number: 4,
-      tag: "INFORME 4",
       title: "Paseo Fluvial Murcia Río",
       timesCount: 3,
       templates: [
@@ -276,9 +255,9 @@ const REPORTS_BY_VERSION = {
       ],
     },
     {
-      id: "informe5",
-      number: 5,
-      tag: "INFORME 5",
+      id: "informe4",
+      number: 4,
+      tag: "INFORME 4",
       title: "Parking Disuasorio Malecón",
       timesCount: 4,
       templates: [
@@ -541,6 +520,9 @@ const ALL_SLOTS = (() => {
   return slots;
 })();
 
+// Franjas de 10 minutos (22:00-06:00) para marcar el inicio/fin de otros
+// servicios que hayan podido ocupar a la patrulla.
+const SERVICE_SLOTS = ALL_SLOTS.filter((s) => s.offset % 10 === 0);
 
 // El portapapeles moderno (navigator.clipboard) puede estar bloqueado por
 // permisos en algunos contextos (por ejemplo, el enlace publicado del
@@ -1041,12 +1023,128 @@ function TimeSelectScreen({ userLabel, version, onSelect, onBack, onLogout }) {
   );
 }
 
-// Opciones disponibles para un hueco concreto: dentro de 22:00-06:00, fuera
-// de los 45 minutos del India Delta, con al menos 60 minutos respecto a otra
-// vigilancia del mismo informe, y al menos 20 minutos respecto a vigilancias
-// de otros informes (para que no se solapen). Es una función pura para poder
-// reutilizarla también en el generador aleatorio.
-function computeOptionsForSlot(times, ri, ti, indiaDeltaOffset) {
+const SERVICE_COUNT = 4;
+
+function BusyServicesScreen({ userLabel, version, initialServices, onSubmit, onBack, onLogout }) {
+  const [services, setServices] = useState(
+    initialServices || Array.from({ length: SERVICE_COUNT }, () => ({ start: "", end: "" }))
+  );
+
+  const updateService = (index, field, value) => {
+    setServices((prev) => {
+      const next = prev.map((s) => ({ ...s }));
+      next[index][field] = value;
+      // Si el inicio cambia y el fin ya no es posterior, se limpia el fin.
+      if (field === "start" && next[index].end && labelToOffset(next[index].end) <= labelToOffset(value)) {
+        next[index].end = "";
+      }
+      return next;
+    });
+  };
+
+  const endOptionsFor = (start) => {
+    if (!start) return SERVICE_SLOTS;
+    const startOffset = labelToOffset(start);
+    return SERVICE_SLOTS.filter((s) => s.offset > startOffset);
+  };
+
+  return (
+    <PaperBackground>
+      <div className="w-full max-w-2xl">
+        <TopBar userLabel={`${userLabel} · ${version}`} right={<LogoutButton onLogout={onLogout} />} />
+
+        <OfficialCard>
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1 text-xs font-semibold mb-4"
+            style={{ color: COLORS.inkSoft }}
+          >
+            <ChevronLeft size={14} /> Cambiar unidad
+          </button>
+
+          <CardTab icon={<ClipboardList size={13} />} label="OTROS SERVICIOS" />
+
+          <h1
+            className="text-xl mb-1 uppercase"
+            style={{ fontFamily: "'Oswald', sans-serif", color: COLORS.ink }}
+          >
+            ¿Has estado ocupado en otros servicios?
+          </h1>
+          <p className="text-sm mb-6" style={{ color: COLORS.inkSoft }}>
+            Marca el inicio y el fin de cada servicio en el que no hayas podido hacer vigilancias.
+            Ese tramo horario quedará bloqueado para las vigilancias. Si no ha sido tu caso, deja
+            los campos en blanco y continúa.
+          </p>
+
+          <div className="flex flex-col gap-4">
+            {services.map((service, i) => (
+              <div key={i}>
+                <label className="block text-[11px] mb-1" style={{ color: COLORS.inkSoft }}>
+                  Servicio {i + 1}
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <select
+                    value={service.start}
+                    onChange={(e) => updateService(i, "start", e.target.value)}
+                    className="w-full px-2 py-2 text-sm outline-none"
+                    style={{
+                      border: `1.5px solid ${COLORS.border}`,
+                      backgroundColor: "#FFFFFF",
+                      color: COLORS.ink,
+                      fontFamily: "'JetBrains Mono', monospace",
+                    }}
+                  >
+                    <option value="">Inicio</option>
+                    {SERVICE_SLOTS.map((s) => (
+                      <option key={s.label} value={s.label}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={service.end}
+                    onChange={(e) => updateService(i, "end", e.target.value)}
+                    disabled={!service.start}
+                    className="w-full px-2 py-2 text-sm outline-none"
+                    style={{
+                      border: `1.5px solid ${COLORS.border}`,
+                      backgroundColor: service.start ? "#FFFFFF" : COLORS.paperDim,
+                      color: COLORS.ink,
+                      fontFamily: "'JetBrains Mono', monospace",
+                    }}
+                  >
+                    <option value="">Fin</option>
+                    {endOptionsFor(service.start).map((s) => (
+                      <option key={s.label} value={s.label}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={() => onSubmit(services)}
+            className="w-full mt-8 py-2.5 text-sm font-bold tracking-widest uppercase transition-transform active:scale-[0.98]"
+            style={{ backgroundColor: COLORS.nightDeep, color: COLORS.badge, fontFamily: "'Oswald', sans-serif" }}
+          >
+            Continuar
+          </button>
+        </OfficialCard>
+      </div>
+    </PaperBackground>
+  );
+}
+
+
+// de los 45 minutos del India Delta, fuera de los tramos ocupados por otros
+// servicios, con al menos 60 minutos respecto a otra vigilancia del mismo
+// informe, y al menos 20 minutos respecto a vigilancias de otros informes
+// (para que no se solapen). Es una función pura para poder reutilizarla
+// también en el generador aleatorio.
+function computeOptionsForSlot(times, ri, ti, indiaDeltaOffset, busyRanges) {
   const current = times[ri][ti];
   const constraints = [];
   times.forEach((arr, r2) =>
@@ -1061,6 +1159,9 @@ function computeOptionsForSlot(times, ri, ti, indiaDeltaOffset) {
     if (slot.offset >= indiaDeltaOffset && slot.offset < indiaDeltaOffset + INDIA_DELTA_DURATION) {
       return false;
     }
+    if (busyRanges && busyRanges.some((r) => slot.offset >= r.start && slot.offset < r.end)) {
+      return false;
+    }
     return !constraints.some((c) => Math.abs(slot.offset - c.offset) < c.gap);
   });
 }
@@ -1072,11 +1173,11 @@ function randomPick(arr) {
 // Intenta generar un set completo de horas al azar, respetando todas las
 // reglas. Como el relleno es secuencial y aleatorio, algún intento puede
 // quedarse sin huecos válidos al final; por eso se reintenta varias veces.
-function tryGenerateRandomTimes(reports, indiaDeltaOffset) {
+function tryGenerateRandomTimes(reports, indiaDeltaOffset, busyRanges) {
   const times = reports.map((r) => Array(r.timesCount).fill(""));
   for (let ri = 0; ri < reports.length; ri++) {
     for (let ti = 0; ti < reports[ri].timesCount; ti++) {
-      const options = computeOptionsForSlot(times, ri, ti, indiaDeltaOffset);
+      const options = computeOptionsForSlot(times, ri, ti, indiaDeltaOffset, busyRanges);
       if (options.length === 0) return null;
       times[ri][ti] = randomPick(options).label;
     }
@@ -1084,17 +1185,17 @@ function tryGenerateRandomTimes(reports, indiaDeltaOffset) {
   return times;
 }
 
-function generateRandomTimes(reports, indiaDeltaTime, maxAttempts = 400) {
+function generateRandomTimes(reports, indiaDeltaTime, busyRanges, maxAttempts = 400) {
   const indiaDeltaOffset = labelToOffset(indiaDeltaTime);
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const result = tryGenerateRandomTimes(reports, indiaDeltaOffset);
+    const result = tryGenerateRandomTimes(reports, indiaDeltaOffset, busyRanges);
     if (result) return result;
   }
   return null;
 }
 
 // --- Formulario de horas de vigilancias (paso previo a los informes) ---
-function TimesFormScreen({ userLabel, version, indiaDeltaTime, reports, initialTimes, variantMap, onSubmit, onBack, onLogout }) {
+function TimesFormScreen({ userLabel, version, indiaDeltaTime, reports, initialTimes, variantMap, busyRanges, onSubmit, onBack, onLogout }) {
   const [times, setTimes] = useState(
     initialTimes || reports.map((r) => Array(r.timesCount).fill(""))
   );
@@ -1112,10 +1213,10 @@ function TimesFormScreen({ userLabel, version, indiaDeltaTime, reports, initialT
 
   const indiaDeltaOffset = labelToOffset(indiaDeltaTime);
 
-  const optionsFor = (ri, ti) => computeOptionsForSlot(times, ri, ti, indiaDeltaOffset);
+  const optionsFor = (ri, ti) => computeOptionsForSlot(times, ri, ti, indiaDeltaOffset, busyRanges);
 
   const handleRandomize = () => {
-    const result = generateRandomTimes(reports, indiaDeltaTime);
+    const result = generateRandomTimes(reports, indiaDeltaTime, busyRanges);
     if (!result) {
       setRandomError("No se ha podido generar un horario válido, inténtalo de nuevo.");
       return;
@@ -1161,6 +1262,15 @@ function TimesFormScreen({ userLabel, version, indiaDeltaTime, reports, initialT
             <b style={{ color: COLORS.ink }}>{offsetToLabel(labelToOffset(indiaDeltaTime) + INDIA_DELTA_DURATION)}</b>{" "}
             no aparecerán horas de vigilancia disponibles.
           </p>
+          {busyRanges && busyRanges.length > 0 && (
+            <p className="text-sm mb-6" style={{ color: COLORS.inkSoft }}>
+              Tampoco aparecerán horas dentro de los servicios marcados como ocupados:{" "}
+              {busyRanges
+                .map((r) => `${offsetToLabel(r.start)}–${offsetToLabel(r.end)}`)
+                .join(", ")}
+              .
+            </p>
+          )}
 
           <button
             onClick={handleRandomize}
@@ -1655,6 +1765,7 @@ export default function App() {
   const [version, setVersion] = useState(null);
   const [includePool, setIncludePool] = useState(null); // null = aún no preguntado
   const [indiaDeltaTime, setIndiaDeltaTime] = useState(null);
+  const [busyServices, setBusyServices] = useState(null); // null = aún no preguntado
   const [times, setTimes] = useState(null); // array of arrays, per report
   const [timesSubmitted, setTimesSubmitted] = useState(false);
   const [session, setSession] = useState(null); // { username, name }
@@ -1674,6 +1785,7 @@ export default function App() {
   const resetAfterVersion = () => {
     setIncludePool(null);
     setIndiaDeltaTime(null);
+    setBusyServices(null);
     setTimes(null);
     setTimesSubmitted(false);
   };
@@ -1730,6 +1842,22 @@ export default function App() {
     );
   }
 
+  if (!busyServices) {
+    return (
+      <BusyServicesScreen
+        userLabel={session.name}
+        version={version}
+        onSubmit={(services) => setBusyServices(services)}
+        onBack={handleBackToVersion}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  const busyRanges = busyServices
+    .filter((s) => s.start && s.end)
+    .map((s) => ({ start: labelToOffset(s.start), end: labelToOffset(s.end) }));
+
   if (baseReports && includePool === null) {
     return (
       <PoolReportScreen
@@ -1761,6 +1889,7 @@ export default function App() {
           reports={reports}
           initialTimes={times}
           variantMap={variantMap}
+          busyRanges={busyRanges}
           onSubmit={(t) => {
             setTimes(t);
             setTimesSubmitted(true);
